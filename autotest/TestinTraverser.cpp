@@ -2,7 +2,13 @@
 #include "TestinUiautomator.h"
 #include "cocos_inc.h"
 #include <sys/types.h>
+
+#ifdef _WINDOWS
+#include <process.h>
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 
 NS_CC_BEGIN
@@ -70,7 +76,11 @@ const std::string TestinTraverser::dump() {
     rootElement->SetAttribute("EngineVersionName", cocos2dVersion());
     
     pDoc->LinkEndChild(rootElement);
-    int pid = (int)getpid();
+#ifdef _WINDOWS
+    int pid = (int)_getpid();
+#else
+	int pid = (int)getpid();
+#endif
     rootElement->SetAttribute("pid", pid);
     pDoc->LinkEndChild(rootElement);
     

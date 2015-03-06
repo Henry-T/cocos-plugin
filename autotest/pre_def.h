@@ -24,6 +24,7 @@
 #define TCSpriteBatchNode CCSpriteBatchNode
 #define TCScale9Sprite extension::CCScale9Sprite
 #define TCTextureCache CCTextureCache
+#define TCApplication CCApplication
 
 #define funcDirectorGetInstance sharedDirector
 #define funcNodeGetZOder getZOrder

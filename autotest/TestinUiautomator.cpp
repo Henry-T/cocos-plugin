@@ -1,13 +1,22 @@
 #include "TestinUiautomator.h"
 #include "TestinTraverser.h"
 #include "cocos_inc.h"
+#include <sys/types.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <errno.h>
+
+#ifdef _WINDOWS 
+#include<Winsock2.h>
+#include<WS2tcpip.h>
+#include <process.h>
+#else
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <fcntl.h>
 #include <netinet/in.h>
+#endif
 
 #define TESTIN_UIAUTOMATOR_PORT 9464
 #define TESTIN_UIAUTOMATOR_PORT_RANGE 8
@@ -142,12 +151,13 @@ bool TestinUIAutomator::initSocketServer() {
 	TCLog("socket listening on port %d", TESTIN_UIAUTOMATOR_PORT);
 	struct sockaddr_in serverAddr;
 	int port = TESTIN_UIAUTOMATOR_PORT;
-	bzero(&serverAddr, sizeof(serverAddr));
+	memset(&serverAddr, 0, sizeof(serverAddr));
+	// bzero(&serverAddr, sizeof(serverAddr));
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_port = htons(port);
 	serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	while (bind(sServerSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+	while (::bind(sServerSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
 		TCLog("failed to bind socket on port %d", port);
 		port += 1;
 		if (port >= TESTIN_UIAUTOMATOR_PORT + TESTIN_UIAUTOMATOR_PORT_RANGE)
@@ -155,7 +165,11 @@ bool TestinUIAutomator::initSocketServer() {
 		serverAddr.sin_port = htons(port);
 		TCLog("try to bind socket on port %d", port);
 
+#ifdef _WINDOWS
+		Sleep(1000 * 100);
+#else
 		usleep(1000 * 100);
+#endif
 	}
 	if(listen(sServerSocket, 5) < 0) {
 		TCLog("failed to listen");
@@ -170,12 +184,14 @@ void TestinUIAutomator::startSocketServer() {
 	int client;
 	int len;
 	struct sockaddr_in clientAddr;
+	// memset(&clientAddr, 0, sizeof(struct sockaddr_in));
+
 	int addrLen = sizeof(clientAddr);
 	char cmd[16];
 	char buf[8];
 
 	while(1) {
-		TCLog("Listening on port: %d", htons(clientAddr.sin_port));
+		// TCLog("Listening on port: %d", htons(clientAddr.sin_port));
 		client = accept(sServerSocket, (struct sockaddr*)&clientAddr, (socklen_t*)&addrLen);
 		if(client < 0) {
 			TCLog("accept");
@@ -184,14 +200,32 @@ void TestinUIAutomator::startSocketServer() {
 		TCLog("recv client data...n");
 		TCLog("IP is %s", inet_ntoa(clientAddr.sin_addr));
 		TCLog("Port is %d", htons(clientAddr.sin_port));
-		bzero(cmd, 16);
+		memset(cmd, 0, 16);
 
-		int flags = fcntl(client,F_GETFL,0);
+#ifdef _WINDOWS 
+		unsigned long off = 0;
+		ioctlsocket(client, FIONBIO, &off);
+
+		// blocking
+		//unsigned long off = 0;
+		//if (ioctlsocket(client, FIONBIO, &off) != 0)
+		//{
+		//	TCLog("读取Socket信息失败!");
+		//}
+
+		//unsigned long on = 1;
+		//// non-blocking
+		//if (ioctlsocket(client, FIONBIO, &on) != 0)
+		//{
+		//}
+#else
+		int flags = fcntl(client, F_GETFL, 0);
 		if (flags == -1)
 			fcntl(client, F_SETFL, O_NONBLOCK);
 		else
 			fcntl(client, F_SETFL, flags | O_NONBLOCK);
 
+#endif
 		char buf[16] = {0};
 		int numRead, sel;
 		fd_set readFlags, writeFlags;
@@ -206,9 +240,13 @@ void TestinUIAutomator::startSocketServer() {
 			FD_ZERO(&writeFlags);
 			FD_SET(client, &readFlags);
 			FD_SET(client, &writeFlags);
+#ifdef _WINDOWS
+			// FD_SET(0, &readFlags);
+			// FD_SET(0, &writeFlags);
+#else
 			FD_SET(STDIN_FILENO, &readFlags);
 			FD_SET(STDIN_FILENO, &writeFlags);
-
+#endif
 			if ((getCurrentTime() - t) > 1000)
 			{
 				TCLog("recv timeout");
@@ -220,6 +258,9 @@ void TestinUIAutomator::startSocketServer() {
 				case -1:
 					{
 						TCLog("closing socket for select error..");
+#ifdef _WINDOWS 
+						TCLog("%s", WSAGetLastError());
+#endif
 						breakSocketReceive = true;
 					}
 					break;
@@ -292,8 +333,13 @@ void TestinUIAutomator::startSocketServer() {
 
 		if (strRead != NULL)
 			free(strRead);
+#ifdef _WINDOWS
+		Sleep(1);
+		closesocket(client);
+#else
 		usleep(1);
 		close(client);
+#endif
 
 	}
 }
@@ -317,7 +363,11 @@ const std::string TestinUIAutomator::getFPSString() {
 	int len = strlen(format) + strlen(buff) + 8;
 	char* str = (char*)malloc(len);
 	memset(str, 0, len);
+#ifdef _WINDOWS 
+	sprintf(str, format, (int)_getpid(), buff);
+#else
 	sprintf(str, format, (int)getpid(), buff);
+#endif
 	free(buff);
 	std::string ret = str;
 	free(str);
@@ -336,6 +386,11 @@ const std::string TestinUIAutomator::packageHttpResponse(const char* body) {
 
 
 int TestinUIAutomator::parseSocketReadBuff(const char* buff) {
+	TCLog("收到请求");
+#ifdef _WINDOWS
+	TCLog(buff);
+#endif
+
 	if (buff != NULL && strlen(buff) >= 4)
 	{
 		//only receive get request
@@ -344,11 +399,11 @@ int TestinUIAutomator::parseSocketReadBuff(const char* buff) {
 		}
 		
 
-		char* eof = strstr(buff, "\r\n\r\n");
+		const char* eof = strstr(buff, "\r\n\r\n");
 		if (eof == NULL)
 			return CMD_CONTINUE;
 
-		char* end = strstr(buff, " HTTP/1.");
+		const char* end = strstr(buff, " HTTP/1.");
 		if (end == NULL)
 			return CMD_UNKNOWN;
 
@@ -379,7 +434,11 @@ void* TestinUIAutomator::threadFPSRun(void *r)
 	long time = getCurrentTime();
 	while (true)
 	{
+#if _WINDOWS
+		Sleep(1000 * FPS_INTERVAL);
+#else
 		usleep(1000 * FPS_INTERVAL);
+#endif
 
 		long t = getCurrentTime() - time;
 		int f = director->getTotalFrames() - frames;

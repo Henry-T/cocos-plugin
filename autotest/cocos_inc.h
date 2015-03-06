@@ -1,6 +1,6 @@
 #include "pre_def.h"
 
-#define TESTIN_USING_CC_EXTENSION 1
+#define TESTIN_USING_CC_EXTENSION 0
 
 #ifdef COCOS2D_CPP_2X
 	#include "layers_scenes_transitions_nodes/CCScene.h"
