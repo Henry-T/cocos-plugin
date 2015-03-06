@@ -210,7 +210,6 @@ void TestinUIAutomator::startSocketServer() {
 		//unsigned long off = 0;
 		//if (ioctlsocket(client, FIONBIO, &off) != 0)
 		//{
-		//	TCLog("读取Socket信息失败!");
 		//}
 
 		//unsigned long on = 1;
@@ -386,7 +385,7 @@ const std::string TestinUIAutomator::packageHttpResponse(const char* body) {
 
 
 int TestinUIAutomator::parseSocketReadBuff(const char* buff) {
-	TCLog("收到请求");
+	TCLog("Parsing");
 #ifdef _WINDOWS
 	TCLog(buff);
 #endif
